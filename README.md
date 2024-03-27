@@ -1,12 +1,14 @@
 # fpsync_ARCH
 
 This is a wrapper script for the fpsync utility that comes with the fpart tool. It simplifies the most common fpsync tasks.\
+It can be used to copy large datasets of very small files.
 Please refer to the [fpsync documentation](https://www.fpart.org/fpsync/) for more options
 
 ## Prerequisites
+fpart utility must be installed and located in your $PATH\
 [fpsync documentation](https://www.fpart.org/)
 
-[RPM for RHEL/Rocky 9](https://kojipkgs.fedoraproject.org//packages/fpart/1.5.1/1.el9/x86_64/fpart-1.5.1-1.el9.x86_64.rpm)
+[fpart RPM for RHEL/Rocky 9](https://kojipkgs.fedoraproject.org//packages/fpart/1.5.1/1.el9/x86_64/fpart-1.5.1-1.el9.x86_64.rpm)
 
 
 
@@ -46,3 +48,5 @@ fpsync_ARCH.sh is fastest from local disk to nfs mounted path, but can also be u
 This option is considerably slower to due to encryption overhead
 
 Refer to the fpsync man page for more granular options
+
+Logging for all rsync threads for the above example would be located under /tmp/fpart-log/\<username\>-\<flowcell\>
