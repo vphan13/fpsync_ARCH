@@ -5,7 +5,8 @@ It can be used to copy large datasets of very small files.
 Please refer to the [fpsync documentation](https://www.fpart.org/fpsync/) for more options
 
 ## Prerequisites
-The fpart utility must be installed and located in your $PATH\
+The fpart utility must be installed and located in your $PATH
+
 [fpart documentation](https://www.fpart.org/)
 
 [fpart RPM for RHEL/Rocky 9](https://kojipkgs.fedoraproject.org//packages/fpart/1.5.1/1.el9/x86_64/fpart-1.5.1-1.el9.x86_64.rpm)
