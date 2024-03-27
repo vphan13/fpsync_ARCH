@@ -3,7 +3,7 @@
 This is a wrapper script for the fpsync utility that comes with the fpart tool. It simplifies the most common fpsync tasks.\
 Please refer to the [fpsync documentation](https://www.fpart.org/fpsync/) for more options
 
-## Prerequisites[
+## Prerequisites
 [fpsync documentation](https://www.fpart.org/)
 
 [RPM for RHEL/Rocky 9](https://kojipkgs.fedoraproject.org//packages/fpart/1.5.1/1.el9/x86_64/fpart-1.5.1-1.el9.x86_64.rpm)
