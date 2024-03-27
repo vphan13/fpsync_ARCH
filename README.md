@@ -5,10 +5,12 @@ It can be used to copy large datasets of very small files.
 Please refer to the [fpsync documentation](https://www.fpart.org/fpsync/) for more options
 
 ## Prerequisites
-fpart utility must be installed and located in your $PATH\
+The fpart utility must be installed and located in your $PATH\
 [fpart documentation](https://www.fpart.org/)
 
 [fpart RPM for RHEL/Rocky 9](https://kojipkgs.fedoraproject.org//packages/fpart/1.5.1/1.el9/x86_64/fpart-1.5.1-1.el9.x86_64.rpm)
+
+A 10Gb connection
 
 
 
@@ -38,7 +40,7 @@ Override defaults using:
 
 
 Generally speaking, when copying lots of small files, its best to reduce the amount of data (-S) and increase the number of
-concurrent rsync threads (-T) and limit how many files per thread (-F) to ensure maximum number of threads to fill your
+concurrent rsync threads (-T) and limit how many files per thread (-F) to ensure there is enough data being copied concurrently to fill your
 bandwidth.  The bottleneck will likely be your disk io.  
 
 fpsync_ARCH.sh is fastest from local disk to nfs mounted path, but can also be used over ssh
