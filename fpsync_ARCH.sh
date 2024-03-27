@@ -2,8 +2,7 @@
 
 #################################
 #    fpsync wrapper script	#
-#    Written by Vinh Phan for	#
-#    Bionano Genomics		#
+#    Written by Vinh Phan 	#
 #################################
 
 MAILTO=""
