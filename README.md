@@ -16,21 +16,15 @@ chown +x fpsync_ARCH.sh
 
 Usage:
         fpsync_ARCH Takes the following 3 optional options and source and destination paths
-        if no options are provided, defaults in [ ] are used
-        -T: Number of rsync threads     [15]
-        -S: Size (In GB) per thread     [6]
+        if no options are provided, defaults in [ ] are used\
+        -T: Number of rsync threads     [15]\
+        -S: Size (In GB) per thread     [6]\
         -F: Number of files per thread  [2500]
-
 
 Example:
         fpsync_ARCH <src directory> <destination directory>
 
        fpsync_ARCH /home/users1/<username>/<flowcell> /home/users2/<username>/<flowcell>
-
-By default fpsync_ARCH is configured to use:\
-        - 15 concurrent threads (override using the -T option)\
-        - copying 6 GB of data per thread (override using the -S option in GB)\
-        - maximum of 2500 files per thread (override using the -F -option)
 
 Override defaults using:
 
@@ -48,5 +42,7 @@ bandwidth.  The bottleneck will likely be your disk io.
 fpsync_ARCH.sh is fastest from local disk to nfs mounted path, but can also be used over ssh\
 
   ```fpsync_ARCH -T 25 -S 10 -F 5000 /home/users1/<username>/<flowcell> username@hostname:/home/users2/<username>/<flowcell>```
+
+This option is considerably slower to due to encryption overhead
 
 Refer to the fpsync man page for more granular options
