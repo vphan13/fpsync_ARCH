@@ -27,13 +27,13 @@ Usage:
         -F: Number of files per thread  [2500]
 
 Example:
-        fpsync_ARCH <src directory> <destination directory>
+        fpsync_ARCH.sh <src directory> <destination directory>
 
-       fpsync_ARCH /home/users1/<username>/<flowcell> /home/users2/<username>/<flowcell>
+       fpsync_ARCH.sh /home/users1/<username>/<flowcell> /home/users2/<username>/<flowcell>
 
 Override defaults using:
 
-        fpsync_ARCH -T 25 -S 10 -F 5000 /home/users1/<username>/<flowcell> /home/users2/<username>/<flowcell>
+        fpsync_ARCH.sh -T 25 -S 10 -F 5000 /home/users1/<username>/<flowcell> /home/users2/<username>/<flowcell>
 
         - 25 concurrent threads (override using the -T option)
         - copying 10 GB of data per thread (override using the -S option in GB)
@@ -46,7 +46,7 @@ bandwidth.  The bottleneck will likely be your disk io.
 
 fpsync_ARCH.sh is fastest from local disk to nfs mounted path, but can also be used over ssh
 
-  ```fpsync_ARCH -T 25 -S 10 -F 5000 /home/users1/<username>/<flowcell> username@hostname:/home/users2/<username>/<flowcell>```
+  ```fpsync_ARCH.sh -T 25 -S 10 -F 5000 /home/users1/<username>/<flowcell> username@hostname:/home/users2/<username>/<flowcell>```
 
 This option is considerably slower to due to encryption overhead
 
