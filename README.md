@@ -39,7 +39,7 @@ Generally speaking, when copying lots of small files, its best to reduce the amo
 concurrent rsync threads (-T) and limit how many files per thread (-F) to ensure maximum number of threads to fill your
 bandwidth.  The bottleneck will likely be your disk io.  
 
-fpsync_ARCH.sh is fastest from local disk to nfs mounted path, but can also be used over ssh\
+fpsync_ARCH.sh is fastest from local disk to nfs mounted path, but can also be used over ssh
 
   ```fpsync_ARCH -T 25 -S 10 -F 5000 /home/users1/<username>/<flowcell> username@hostname:/home/users2/<username>/<flowcell>```
 
