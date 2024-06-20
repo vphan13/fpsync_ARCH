@@ -17,6 +17,7 @@ A 10Gb connection
 
 ## Installation
 Download the fpsync_ARCH.sh file and place it in your $PATH
+
 chown +x fpsync_ARCH.sh
 
 Usage:
