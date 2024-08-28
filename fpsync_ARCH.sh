@@ -17,38 +17,36 @@ THREADS="${THREADS:-15}"
 SIZE="${SIZE:-$((6 * 1024 * 1024 * 1024))}"
 BSIZE="${BSIZE:-6}"
 
-
 # MAX number of files per rsync thread
 FILES="${FILES:-2500}"
 
-fpsync-it () {
-# check if fpart and fpsync is in your path
+fpsync-it() {
+	# check if fpart and fpsync is in your path
 
-    echo "Running fpsync-it"
-    export starttime=$(date +%Y-%m-%d)_$(date +%T)
-# Get the last 2 directories of the source path and
-# name the run log directory after them
-D2=$(dirname "$SRC_DIR")
-RUNLOG="${LOGDIR}"/$(basename "${D2}")-$(basename "${SRC_DIR}")
+	echo "Running fpsync-it"
+	export starttime=$(date +%Y-%m-%d)_$(date +%T)
+	# Get the last 2 directories of the source path and
+	# name the run log directory after them
+	D2=$(dirname "$SRC_DIR")
+	RUNLOG="${LOGDIR}"/$(basename "${D2}")-$(basename "${SRC_DIR}")
 
-    mkdir -p "${RUNLOG}"
-    echo "Active logs are located under ${RUNLOG}"
+	mkdir -p "${RUNLOG}"
+	echo "Active logs are located under ${RUNLOG}"
 
-echo "
+	echo "
 Copying $SRC_DIR to $DEST_DIR using 
 	- $THREADS threads
 	- maximum of $FILES files per thread
 	- maximum of $BSIZE GB per thread 
 	- log files are located at $RUNLOG
 "
-#    fpsync -v -n 20 -f 2500 -s $((4 * 1024 * 1024 * 1024)) -d "${RUNLOG}" "${SRC_DIR}" "${DEST_DIR}" -M "${MAILTO}"
-#    echo "fpsync  -v -n ${THREADS} -f ${FILES} -s ${SIZE} -d ${RUNLOG} ${SRC_DIR} ${DEST_DIR}"
-    fpsync  -v -n ${THREADS} -f ${FILES} -s ${SIZE} -d ${RUNLOG} ${SRC_DIR} ${DEST_DIR}
+	#    fpsync -v -n 20 -f 2500 -s $((4 * 1024 * 1024 * 1024)) -d "${RUNLOG}" "${SRC_DIR}" "${DEST_DIR}" -M "${MAILTO}"
+	#    echo "fpsync  -v -n ${THREADS} -f ${FILES} -s ${SIZE} -d ${RUNLOG} ${SRC_DIR} ${DEST_DIR}"
+	fpsync -v -n ${THREADS} -f ${FILES} -s ${SIZE} -d ${RUNLOG} ${SRC_DIR} ${DEST_DIR}
 }
 
-
-help () {
-cat << EOL
+help() {
+	cat <<EOL
 
 This is a wrapper script for the fpsync utility included with the fpart utility.
 For more info please read the docs at http://www.fpart.org/#fpsync or download at
@@ -57,7 +55,7 @@ https://kojipkgs.fedoraproject.org//packages/fpart/1.5.1/1.el9/x86_64/fpart-1.5.
 It is used to copy large directory trees with lots of files
 
 Prerequisites: This script reaches the highest throughput when the source/destination directories are locally hosted
-or nfs mounted. 
+or nfs mounted. A 10Gb connection is required.
 
 If running against a remote host, SSH key access as well as the prelogin banner needs to be disabled
 The fpart and fpsync utility also need to be in your PATH: https://github.com/martymac/fpart.git
@@ -99,27 +97,27 @@ bandwidth
 Refer to the fpsync man page or change the options under the fpsync-it function below
 
 EOL
-exit 2
+	exit 2
 }
 
 while getopts 'HT:F:S:' OPTION; do
-   case "$OPTION" in
-        T)
-           THREADS=$OPTARG
-           ;;
-        F)
-           FILES=$OPTARG
-           ;;
-        S)
-           BSIZE=$OPTARG
-           SIZE=$((${BSIZE} * 1024 * 1024 * 1024))
-           ;;
+	case "$OPTION" in
+	T)
+		THREADS=$OPTARG
+		;;
+	F)
+		FILES=$OPTARG
+		;;
+	S)
+		BSIZE=$OPTARG
+		SIZE=$((${BSIZE} * 1024 * 1024 * 1024))
+		;;
 
-        H | *)
-           help
+	H | *)
+		help
 
-           ;;
-   esac
+		;;
+	esac
 done
 
 SRC_DIR=${@:$OPTIND:1}
