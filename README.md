@@ -5,36 +5,40 @@ It can be used to copy large datasets of very small files.
 Please refer to the [fpsync documentation](https://www.fpart.org/fpsync/) for more options
 
 ## Prerequisites
-The fpart utility must be installed and located in your $PATH
+* The fpart utility must be installed and located in your $PATH
 
-[fpart documentation](https://www.fpart.org/)
+* [fpart documentation](https://www.fpart.org/)
 
-[fpart RPM for RHEL/Rocky 9](https://kojipkgs.fedoraproject.org//packages/fpart/1.5.1/1.el9/x86_64/fpart-1.5.1-1.el9.x86_64.rpm)
+* [fpart RPM for RHEL/Rocky 9](https://kojipkgs.fedoraproject.org//packages/fpart/1.5.1/1.el9/x86_64/fpart-1.5.1-1.el9.x86_64.rpm)
 
-A 10Gb connection
+* A least a 10Gb connection
 
 
 
 ## Installation
-Download the fpsync_ARCH.sh file and place it in your $PATH
+1. Download the fpsync_ARCH.sh file and place it in your $PATH
+2. Make sure it is executable
 
-chown +x fpsync_ARCH.sh
+           chown +x fpsync_ARCH.sh
 
-Usage:
-        fpsync_ARCH Takes the following 3 optional options and source and destination paths
-        if no options are provided, defaults in [ ] are used\
-        -T: Number of rsync threads     [15]\
-        -S: Size (In GB) per thread     [6]\
+
+### Usage:
+fpsync_ARCH Takes the following 3 optional options and source and destination paths
+if no options are provided, defaults in [ ] are used
+
+        -T: Number of rsync threads     [15]
+        -S: Size (In GB) per thread     [6]
         -F: Number of files per thread  [2500]
 
-Example:
+### Example:
         fpsync_ARCH.sh <src directory> <destination directory>
+Note that the source directory being copied must also be specified in the destination path
 
        fpsync_ARCH.sh /home/users1/<username>/<flowcell> /home/users2/<username>/<flowcell>
 
-Override defaults using:
+### Override defaults using:
 
-        fpsync_ARCH.sh -T 25 -S 10 -F 5000 /home/users1/<username>/<flowcell> /home/users2/<username>/<flowcell>
+    fpsync_ARCH.sh -T 25 -S 10 -F 5000 /home/users1/<username>/directory1 /home/users2/<username>/directory1
 
         - 25 concurrent threads (override using the -T option)
         - copying 10 GB of data per thread (override using the -S option in GB)
@@ -47,7 +51,7 @@ bandwidth.  The bottleneck will likely be your disk io.
 
 fpsync_ARCH.sh is fastest from local disk to nfs mounted path, but can also be used over ssh
 
-  ```fpsync_ARCH.sh -T 25 -S 10 -F 5000 /home/users1/<username>/<flowcell> username@hostname:/home/users2/<username>/<flowcell>```
+       fpsync_ARCH.sh -T 25 -S 10 -F 5000 /home/users1/<username>/<flowcell> username@hostname:/home/users2/<username>/<flowcell>
 
 This option is considerably slower to due to encryption overhead
 
