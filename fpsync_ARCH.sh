@@ -7,7 +7,7 @@ set -euo pipefail  # Exit on error, undefined vars, pipe failures
 # Script metadata
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_VERSION="1.1"
+readonly SCRIPT_VERSION="1.2"
 
 # Configuration
 MAILTO=""
@@ -28,7 +28,86 @@ error_exit() {
     exit 1
 }
 
-# Validation functions
+# Enhanced size parsing function
+parse_size() {
+    local size_input="$1"
+    local size_bytes
+    
+    # Remove any whitespace
+    size_input="${size_input// /}"
+    
+    # Convert to uppercase for case-insensitive matching
+    local size_upper="${size_input^^}"
+    
+    # Extract numeric part and unit
+    if [[ "$size_upper" =~ ^([0-9]+)([KMGT]?B?)$ ]]; then
+        local number="${BASH_REMATCH[1]}"
+        local unit="${BASH_REMATCH[2]}"
+        
+        # Default to bytes if no unit specified
+        if [[ -z "$unit" ]]; then
+            unit="B"
+        fi
+        
+        # Convert to bytes based on unit
+        case "$unit" in
+            "B")
+                size_bytes="$number"
+                ;;
+            "K"|"KB")
+                size_bytes=$((number * 1024))
+                ;;
+            "M"|"MB")
+                size_bytes=$((number * 1024 * 1024))
+                ;;
+            "G"|"GB")
+                size_bytes=$((number * 1024 * 1024 * 1024))
+                ;;
+            "T"|"TB")
+                size_bytes=$((number * 1024 * 1024 * 1024 * 1024))
+                ;;
+            *)
+                error_exit "Invalid size unit: $unit. Supported units: B, KB, MB, GB, TB"
+                ;;
+        esac
+        
+        echo "$size_bytes"
+    else
+        error_exit "Invalid size format: '$size_input'. Expected format: number[unit] (e.g., 500MB, 2GB, 1024KB)"
+    fi
+}
+
+# Function to format bytes into human-readable format
+format_size() {
+    local bytes="$1"
+    local units=("B" "KB" "MB" "GB" "TB")
+    local size="$bytes"
+    local unit_index=0
+    
+    while ((size >= 1024 && unit_index < 4)); do
+        size=$((size / 1024))
+        ((unit_index++))
+    done
+    
+    echo "${size}${units[unit_index]}"
+}
+
+# Updated validation for size parameter
+validate_size() {
+    local size_input="$1"
+    local parsed_size
+    
+    parsed_size=$(parse_size "$size_input") || return 1
+    
+    # Ensure minimum size (1KB)
+    if ((parsed_size < 1024)); then
+        error_exit "Size must be at least 1KB, got: $(format_size "$parsed_size")"
+    fi
+    
+    echo "$parsed_size"
+}
+
+# Improved validation function for directories
 validate_directory() {
     local dir="$1"
     local type="$2"
@@ -39,21 +118,36 @@ validate_directory() {
         [[ -d "$dir" ]] || error_exit "$type directory '$dir' does not exist"
         [[ -r "$dir" ]] || error_exit "$type directory '$dir' is not readable"
     elif [[ "$type" == "Destination" ]]; then
-        # Check if destination is remote (contains hostname@)
-        if [[ "$dir" =~ ^[^@]+@[^:]+:.* ]]; then
+        # Check if destination is remote (rsync format)
+        # Supported formats: user@host:/path, user@host:path, host:/path, host:path
+        if [[ "$dir" =~ : ]]; then
             # Remote destination - extract hostname and path for basic validation
-            local remote_host="${dir%%:*}"
+            local remote_part="${dir%%:*}"
             local remote_path="${dir#*:}"
             
-            # Validate hostname format (basic check)
-            [[ "$remote_host" =~ ^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$ ]] || \
-                error_exit "Invalid remote destination format. Expected: user@hostname:/path"
+            # Validate hostname/user@hostname format
+            if [[ "$remote_part" =~ @ ]]; then
+                # Format: user@hostname
+                local username="${remote_part%%@*}"
+                local hostname="${remote_part##*@}"
+                
+                # Basic validation for username and hostname
+                [[ -n "$username" ]] || error_exit "Empty username in remote destination: $dir"
+                [[ -n "$hostname" ]] || error_exit "Empty hostname in remote destination: $dir"
+                [[ "$hostname" =~ ^[a-zA-Z0-9._-]+$ ]] || \
+                    error_exit "Invalid hostname format: $hostname"
+            else
+                # Format: hostname (no user specified)
+                [[ "$remote_part" =~ ^[a-zA-Z0-9._-]+$ ]] || \
+                    error_exit "Invalid hostname format: $remote_part"
+            fi
             
-            # Validate path is absolute
-            [[ "$remote_path" =~ ^/ ]] || \
-                error_exit "Remote destination path must be absolute: $remote_path"
+            # Remote path validation - allow both absolute and relative paths
+            # rsync supports both /absolute/path and relative/path
+            [[ -n "$remote_path" ]] || error_exit "Empty path in remote destination: $dir"
             
-            echo "Note: Remote destination detected. Ensure SSH key authentication is configured."
+            echo "Note: Remote destination detected: $dir"
+            echo "      Ensure SSH key authentication is configured and the remote path is accessible."
         else
             # Local destination - validate as before
             local dest_parent
@@ -103,7 +197,6 @@ fpsync_it() {
     validate_directory "$dest_dir" "Destination"
     validate_numeric "$THREADS" "THREADS" 1
     validate_numeric "$FILES" "FILES" 1
-    validate_numeric "$BSIZE" "BSIZE" 1
     
     # Check dependencies
     check_dependencies
@@ -123,7 +216,7 @@ fpsync_it() {
     echo "  Destination: $dest_dir"
     echo "  Threads: $THREADS"
     echo "  Max files per thread: $FILES"
-    echo "  Max size per thread: ${BSIZE}GB"
+    echo "  Max size per thread: $(format_size "$SIZE")"
     echo "  Log directory: $runlog"
     echo
     
@@ -149,32 +242,44 @@ USAGE:
     $SCRIPT_NAME [OPTIONS] <source_directory> <destination_directory>
 
 OPTIONS:
-    -T <num>    Number of parallel rsync threads (default: $THREADS)
-    -S <num>    Size limit per thread in GB (default: $BSIZE)
-    -F <num>    Maximum files per thread (default: $FILES)
-    -H          Show this help message
+    -T <num>      Number of parallel rsync threads (default: $THREADS)
+    -S <size>     Size limit per thread with units (default: ${BSIZE}GB)
+                  Supported units: B, KB, MB, GB, TB (case insensitive)
+                  Examples: 500MB, 2GB, 1024KB, 1TB
+    -F <num>      Maximum files per thread (default: $FILES)
+    -H            Show this help message
 
 EXAMPLES:
     # Basic local copy
     $SCRIPT_NAME /source/path /dest/path
 
-    # Remote copy via SSH
-    $SCRIPT_NAME /source/path user@remotehost:/dest/path
+    # Remote copy via SSH with 500MB per thread
+    $SCRIPT_NAME -S 500MB /source/path user@remotehost:/dest/path
 
-    # Custom configuration with remote destination
-    $SCRIPT_NAME -T 25 -S 10 -F 5000 /source/path user@server:/dest/path
+    # Large files with 10GB per thread
+    $SCRIPT_NAME -S 10GB -T 8 /source/path /dest/path
+
+    # Many small files with 100MB per thread
+    $SCRIPT_NAME -S 100MB -T 20 -F 10000 /source/path user@server:/dest/path
+
+SIZE EXAMPLES:
+    -S 512MB      512 megabytes
+    -S 2GB        2 gigabytes  
+    -S 1024KB     1024 kilobytes (1MB)
+    -S 1TB        1 terabyte
+    -S 500mb      500 megabytes (case insensitive)
 
 ENVIRONMENT VARIABLES:
     FPSYNC_LOGDIR    Custom log directory (default: /tmp/fpart-log)
     THREADS          Default thread count
-    BSIZE            Default size limit in GB
+    BSIZE            Default size limit in GB (legacy, use -S option instead)
     FILES            Default file limit per thread
 
 NOTES:
-    - For many small files: reduce size (-S), increase threads (-T)
-    - For large files: increase size (-S), optimize thread count (-T)
+    - For many small files: use smaller size limit (-S 100MB), increase threads (-T)
+    - For large files: use larger size limit (-S 5GB), optimize thread count (-T)
     - Log files are automatically organized by source directory name and timestamp
-    - Remote destinations: Use format user@hostname:/path with SSH key authentication
+    - Remote destinations: Use format user@hostname:/path or hostname:/path with SSH key authentication
     - For SSH copies: Disable prelogin banner on remote host for best performance
 
 MORE INFO:
@@ -199,8 +304,10 @@ main() {
                 FILES="$OPTARG"
                 ;;
             S)
-                BSIZE="$OPTARG"
-                SIZE=$((BSIZE * 1024 * 1024 * 1024))
+                # Parse size with units
+                SIZE=$(validate_size "$OPTARG")
+                # Calculate BSIZE for display purposes (convert back to GB equivalent)
+                BSIZE=$(echo "scale=2; $SIZE / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "$((SIZE / 1024 / 1024 / 1024))")
                 ;;
             H)
                 show_help
