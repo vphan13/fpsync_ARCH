@@ -18,6 +18,7 @@ readonly LOGDIR="${FPSYNC_LOGDIR:-/tmp/fpart-log}"
 THREADS="${THREADS:-15}"
 BSIZE="${BSIZE:-6}"
 FILES="${FILES:-2500}"
+RSYNC_OPTS="${RSYNC_OPTS:---archive --compress --partial}"
 
 # Derived values
 SIZE="${SIZE:-$((BSIZE * 1024 * 1024 * 1024))}"
@@ -296,16 +297,17 @@ fpsync_it() {
     echo "  Threads: $THREADS"
     echo "  Max files per thread: $FILES"
     echo "  Max size per thread: $(format_size "$SIZE")"
+    echo "  Rsync options: $RSYNC_OPTS"
     echo "  Log directory: $runlog"
     echo
     
-    # Execute fpsync with the appropriate paths
+    # Execute fpsync with the appropriate paths and rsync options
     if [[ "$use_contents_only" == "true" ]]; then
         # Copy contents: add trailing slash to source for fpsync
-        fpsync -v -n "$THREADS" -f "$FILES" -s "$SIZE" -d "$runlog" "$src_dir/" "$dest_dir_orig"
+        fpsync -v -n "$THREADS" -f "$FILES" -s "$SIZE" -d "$runlog" -o "$RSYNC_OPTS" "$src_dir/" "$dest_dir_orig"
     else
         # Copy directory: use constructed destination path
-        fpsync -v -n "$THREADS" -f "$FILES" -s "$SIZE" -d "$runlog" "$src_dir" "$dest_dir"
+        fpsync -v -n "$THREADS" -f "$FILES" -s "$SIZE" -d "$runlog" -o "$RSYNC_OPTS" "$src_dir" "$dest_dir"
     fi
 }
 
@@ -337,6 +339,10 @@ OPTIONS:
                   Supported units: B, KB, MB, GB, TB (case insensitive)
                   Examples: 500MB, 2GB, 1024KB, 1TB
     -F <num>      Maximum files per thread (default: $FILES)
+    -O <options>  Additional rsync options (default: "$RSYNC_OPTS")
+                  Use single quotes for complex options with nested quotes:
+                  -O '-avvh --exclude ".*" --exclude "*temp*"'
+                  Or escape double quotes: -O "-avvh --exclude \".*\""
     -H            Show this help message
 
 EXAMPLES:
@@ -374,6 +380,7 @@ ENVIRONMENT VARIABLES:
     THREADS          Default thread count
     BSIZE            Default size limit in GB (legacy, use -S option instead)
     FILES            Default file limit per thread
+    RSYNC_OPTS       Default rsync options
 
 NOTES:
     - Trailing slash behavior matches rsync exactly:
@@ -398,7 +405,7 @@ main() {
     local dest_dir=""
     
     # Parse command line arguments
-    while getopts 'HT:F:S:' option; do
+    while getopts 'HT:F:S:O:' option; do
         case "$option" in
             T)
                 THREADS="$OPTARG"
@@ -411,6 +418,10 @@ main() {
                 SIZE=$(validate_size "$OPTARG")
                 # Calculate BSIZE for display purposes (convert back to GB equivalent)
                 BSIZE=$(echo "scale=2; $SIZE / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "$((SIZE / 1024 / 1024 / 1024))")
+                ;;
+            O)
+                # Handle rsync options - preserve quotes and special characters
+                RSYNC_OPTS="$OPTARG"
                 ;;
             H)
                 show_help
