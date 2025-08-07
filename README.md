@@ -6,13 +6,15 @@ A robust Bash wrapper script for the `fpsync` utility that simplifies copying la
 
 This script provides an enhanced interface to `fpsync`, which is part of the `fpart` package. It's designed to handle large-scale file synchronization tasks by distributing work across multiple parallel rsync processes, making it ideal for copying directories containing thousands or millions of files.
 
-**Version 1.3** introduces **rsync-identical syntax behavior** - the trailing slash behavior now matches rsync exactly:
-- `source/` → `dest` (copy contents only)  
-- `source` → `dest/source` (copy directory itself)
+**Version 1.3** introduces:
+- **Rsync-identical syntax behavior** - the trailing slash behavior now matches rsync exactly
+- **Configurable rsync options** via `-O` parameter for full customization
+- Enhanced error handling and validation
 
 ## Features
 
 - **Rsync-Identical Syntax**: Trailing slash behavior matches rsync exactly
+- **Configurable Rsync Options**: Full control over rsync behavior via `-O` parameter
 - **Parallel Processing**: Configurable number of rsync threads for optimal performance
 - **Flexible Size Limits**: Support for human-readable size units (KB, MB, GB, TB)
 - **Remote Sync Support**: SSH-based remote destination copying
@@ -70,6 +72,7 @@ The script now handles trailing slashes exactly like rsync:
 | `-T <num>` | Number of parallel rsync threads | 15 |
 | `-S <size>` | Size limit per thread with units (B, KB, MB, GB, TB) | 6GB |
 | `-F <num>` | Maximum files per thread | 2500 |
+| `-O <options>` | Additional rsync options (quoted string) | `--archive --compress --partial` |
 | `-H` | Show help message | - |
 
 ### Basic Examples
@@ -111,19 +114,75 @@ The script now handles trailing slashes exactly like rsync:
 ./fpsync-wrapper.sh -S 10GB -T 8 -F 500 /source/bigfiles /dest/
 ```
 
+#### Custom Rsync Options
+```bash
+# Delete extra files and show detailed progress
+./fpsync-wrapper.sh -O "--archive --delete --progress --verbose" /source/data/ /dest/
+
+# Complex options with excludes (use single quotes)
+./fpsync-wrapper.sh -O '-avvh --exclude ".*" --exclude "*temp*" --ignore-existing' /source/data /dest/
+
+# High-performance options for large files
+./fpsync-wrapper.sh -S 10GB -T 8 -O "--archive --sparse --compress --partial-dir=.rsync-partial" /source/bigfiles /dest/
+```
+
 #### Various Size Format Examples
 ```bash
-# 512 megabytes
-./fpsync-wrapper.sh -S 512MB /source/data/ /dest/
+# 512 megabytes with custom rsync options
+./fpsync-wrapper.sh -S 512MB -O "--archive --compress --progress" /source/data/ /dest/
 
-# 2 gigabytes
-./fpsync-wrapper.sh -S 2GB /source/data /dest/
+# 2 gigabytes with delete option
+./fpsync-wrapper.sh -S 2GB -O "--archive --delete --verbose" /source/data /dest/
 
-# 1 terabyte
-./fpsync-wrapper.sh -S 1TB /source/data /dest/
+# 1 terabyte with size-only comparison
+./fpsync-wrapper.sh -S 1TB -O "--archive --size-only" /source/data /dest/
 
-# Case insensitive
-./fpsync-wrapper.sh -S 500mb /source/data/ /dest/
+# Case insensitive with exclude patterns
+./fpsync-wrapper.sh -S 500mb -O '-av --exclude "*.tmp" --exclude "*.log"' /source/data/ /dest/
+```
+
+### Rsync Options Examples
+
+The `-O` option allows you to pass any rsync options to customize the sync behavior:
+
+#### Quote Handling for Complex Options
+```bash
+# Simple options (double quotes work fine)
+./fpsync-wrapper.sh -O "--archive --delete --compress" /source /dest
+
+# Complex options with nested quotes (use single quotes to wrap)
+./fpsync-wrapper.sh -O '-avvh --exclude ".*" --exclude "*temp*" --ignore-existing' /source /dest
+
+# Your specific complex example
+./fpsync-wrapper.sh -O '-avvh --size-only --info=progress2 --exclude ".*" --exclude "*temp*" --ignore-existing --min-size=1' /source /dest
+
+# Alternative: escape inner quotes with backslashes
+./fpsync-wrapper.sh -O "-avvh --exclude \".*\" --exclude \"*temp*\"" /source /dest
+
+# Environment variable for very complex options
+export RSYNC_OPTS='-avvh --size-only --info=progress2 --exclude ".*" --exclude "*temp*" --ignore-existing --min-size=1'
+./fpsync-wrapper.sh /source /dest
+```
+
+#### Common Rsync Option Combinations
+```bash
+# Synchronize with deletion and detailed progress
+./fpsync-wrapper.sh -O "--archive --delete --progress --stats" /source/ /dest/
+
+# Skip existing files and show transfer progress
+./fpsync-wrapper.sh -O "--archive --ignore-existing --info=progress2" /source /dest
+
+# Preserve everything including extended attributes
+./fpsync-wrapper.sh -O "--archive --xattrs --acls --hard-links" /source /dest
+
+# Bandwidth-limited transfer with compression
+./fpsync-wrapper.sh -O "--archive --compress --bwlimit=10000" /source user@remote:/dest
+
+# Checksum-based comparison (slower but more accurate)
+./fpsync-wrapper.sh -O "--archive --checksum --verbose" /source /dest
+
+# Dry run to see what would be transferred
+./fpsync-wrapper.sh -O "--archive --dry-run --verbose" /source /dest
 ```
 
 ### Default Settings
@@ -132,11 +191,12 @@ When run with no options, the script uses:
 - **Threads**: 15 parallel rsync processes
 - **Files per thread**: 2500 maximum files per thread  
 - **Size per thread**: 6GB maximum size per thread
+- **Rsync options**: `--archive --compress --partial`
 
 Example with defaults:
 ```bash
 ./fpsync-wrapper.sh /projects/dir1 /nfs/projects/
-# Uses: 15 threads, 2500 files/thread, 6GB/thread
+# Uses: 15 threads, 2500 files/thread, 6GB/thread, basic rsync options
 # Result: Creates /nfs/projects/dir1/ containing the files
 ```
 
@@ -149,8 +209,17 @@ You can customize default behavior using environment variables:
 ```bash
 export FPSYNC_LOGDIR="/custom/log/path"    # Default: /tmp/fpart-log
 export THREADS=20                          # Default thread count
-export BSIZE=8                            # Default size in GB (legacy)
-export FILES=5000                         # Default files per thread
+export BSIZE=8                             # Default size in GB (legacy)
+export FILES=5000                          # Default files per thread
+export RSYNC_OPTS="--archive --compress --delete"  # Default rsync options
+```
+
+Example usage:
+```bash
+# Set custom defaults
+export RSYNC_OPTS="-avvh --delete --progress --exclude '*.tmp'"
+export THREADS=10
+./fpsync-wrapper.sh /source /dest
 ```
 
 ### Performance Tuning Guidelines
@@ -185,6 +254,7 @@ Configuration:
   Threads: 15
   Max files per thread: 2500
   Max size per thread: 6GB
+  Rsync options: --archive --compress --partial
   Log directory: /tmp/fpart-log/projects-dir1-2025-01-15_14-32-18
 
 fpsync[12345]: starting (verbose mode)
@@ -349,7 +419,7 @@ This script is provided under the GNU General Public License v3.0. See LICENSE f
 
 ## Version History
 
-- **v1.3**: Added rsync-identical syntax behavior with trailing slash support
+- **v1.3**: Added rsync-identical syntax behavior with trailing slash support and configurable rsync options via `-O`
 - **v1.2**: Enhanced size parsing and validation with human-readable units
 - **v1.1**: Added remote destination support
 - **v1.0**: Initial release with basic functionality
