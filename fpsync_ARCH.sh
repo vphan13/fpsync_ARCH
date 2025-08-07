@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Improved fpsync wrapper script with better error handling and validation
+# Improved fpsync wrapper script with rsync-like syntax and better error handling
 
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
 # Script metadata
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_VERSION="1.2"
+readonly SCRIPT_VERSION="1.3"
 
 # Configuration
 MAILTO=""
@@ -107,6 +107,57 @@ validate_size() {
     echo "$parsed_size"
 }
 
+# Function to normalize source path for rsync-like behavior
+normalize_source_path() {
+    local src="$1"
+    
+    # Remove trailing slashes to ensure consistent behavior
+    src="${src%/}"
+    
+    echo "$src"
+}
+
+# Function to construct destination path for rsync-like behavior
+construct_dest_path() {
+    local src="$1"
+    local dest="$2"
+    local use_contents_only="$3"
+    
+    # Check if destination is remote
+    if [[ "$dest" =~ : ]]; then
+        # Remote destination
+        local remote_part="${dest%%:*}"
+        local remote_path="${dest#*:}"
+        
+        if [[ "$use_contents_only" == "true" ]]; then
+            # Copy contents only - use destination as-is
+            echo "$dest"
+        else
+            # Copy directory - append source directory name
+            local src_basename
+            src_basename="$(basename "$src")"
+            
+            # Handle trailing slash in remote path
+            if [[ "$remote_path" == */ ]] || [[ "$remote_path" == "" ]]; then
+                echo "${remote_part}:${remote_path}${src_basename}"
+            else
+                echo "${remote_part}:${remote_path}/${src_basename}"
+            fi
+        fi
+    else
+        # Local destination
+        if [[ "$use_contents_only" == "true" ]]; then
+            # Copy contents only - use destination as-is
+            echo "$dest"
+        else
+            # Copy directory - append source directory name
+            local src_basename
+            src_basename="$(basename "$src")"
+            echo "$dest/$src_basename"
+        fi
+    fi
+}
+
 # Improved validation function for directories
 validate_directory() {
     local dir="$1"
@@ -149,11 +200,17 @@ validate_directory() {
             echo "Note: Remote destination detected: $dir"
             echo "      Ensure SSH key authentication is configured and the remote path is accessible."
         else
-            # Local destination - validate as before
+            # Local destination - validate parent directory exists and is writable
             local dest_parent
-            dest_parent="$(dirname "$dir")"
-            [[ -d "$dest_parent" ]] || error_exit "Destination parent directory '$dest_parent' does not exist"
-            [[ -w "$dest_parent" ]] || error_exit "Destination parent directory '$dest_parent' is not writable"
+            if [[ -d "$dir" ]]; then
+                # Destination exists - check if it's writable
+                [[ -w "$dir" ]] || error_exit "Destination directory '$dir' is not writable"
+            else
+                # Destination doesn't exist - check parent directory
+                dest_parent="$(dirname "$dir")"
+                [[ -d "$dest_parent" ]] || error_exit "Destination parent directory '$dest_parent' does not exist"
+                [[ -w "$dest_parent" ]] || error_exit "Destination parent directory '$dest_parent' is not writable"
+            fi
         fi
     fi
 }
@@ -187,14 +244,28 @@ create_log_directory() {
 }
 
 fpsync_it() {
-    local src_dir="$1"
-    local dest_dir="$2"
+    local src_dir_orig="$1"
+    local dest_dir_orig="$2"
     
     echo "Starting fpsync operation..."
     
+    # Normalize source path (remove trailing slashes)
+    local src_dir
+    src_dir=$(normalize_source_path "$src_dir_orig")
+    
+    # Determine if we should copy contents only (rsync-like behavior)
+    local use_contents_only="false"
+    if [[ "$src_dir_orig" == */ ]]; then
+        use_contents_only="true"
+    fi
+    
+    # Construct destination path based on rsync-like behavior
+    local dest_dir
+    dest_dir=$(construct_dest_path "$src_dir" "$dest_dir_orig" "$use_contents_only")
+    
     # Validate inputs
     validate_directory "$src_dir" "Source"
-    validate_directory "$dest_dir" "Destination"
+    validate_directory "$dest_dir_orig" "Destination"
     validate_numeric "$THREADS" "THREADS" 1
     validate_numeric "$FILES" "FILES" 1
     
@@ -212,25 +283,44 @@ fpsync_it() {
     create_log_directory "$runlog"
     
     echo "Configuration:"
-    echo "  Source: $src_dir"
-    echo "  Destination: $dest_dir"
+    echo "  Source: $src_dir_orig"
+    if [[ "$use_contents_only" == "true" ]]; then
+        echo "  Behavior: Copy contents only (rsync-like: source/ -> dest)"
+        echo "  Effective source: $src_dir"
+        echo "  Effective dest: $dest_dir_orig"
+    else
+        echo "  Behavior: Copy directory (rsync-like: source -> dest/source)"
+        echo "  Effective source: $src_dir"
+        echo "  Effective dest: $dest_dir"
+    fi
     echo "  Threads: $THREADS"
     echo "  Max files per thread: $FILES"
     echo "  Max size per thread: $(format_size "$SIZE")"
     echo "  Log directory: $runlog"
     echo
     
-    # Execute fpsync
-    fpsync -v -n "$THREADS" -f "$FILES" -s "$SIZE" -d "$runlog" "$src_dir" "$dest_dir"
+    # Execute fpsync with the appropriate paths
+    if [[ "$use_contents_only" == "true" ]]; then
+        # Copy contents: add trailing slash to source for fpsync
+        fpsync -v -n "$THREADS" -f "$FILES" -s "$SIZE" -d "$runlog" "$src_dir/" "$dest_dir_orig"
+    else
+        # Copy directory: use constructed destination path
+        fpsync -v -n "$THREADS" -f "$FILES" -s "$SIZE" -d "$runlog" "$src_dir" "$dest_dir"
+    fi
 }
 
 show_help() {
     cat << EOF
-$SCRIPT_NAME v$SCRIPT_VERSION - Wrapper script for fpsync utility
+$SCRIPT_NAME v$SCRIPT_VERSION - Wrapper script for fpsync utility with rsync-like syntax
 
 DESCRIPTION:
     This script provides a simplified interface to fpsync for copying large
     directory trees with many files efficiently using parallel rsync processes.
+    The syntax now matches rsync behavior exactly.
+
+SYNTAX BEHAVIOR (identical to rsync):
+    source/     -> dest       # Copy contents of source into dest
+    source      -> dest       # Copy source directory as dest/source
 
 PREREQUISITES:
     - fpart and fpsync utilities must be installed and in PATH
@@ -250,17 +340,27 @@ OPTIONS:
     -H            Show this help message
 
 EXAMPLES:
-    # Basic local copy
-    $SCRIPT_NAME /source/path /dest/path
+    # Copy directory contents (like rsync /source/ /dest/)
+    $SCRIPT_NAME /source/mydir/ /dest/
+    # Result: /dest/ contains the contents of mydir
 
-    # Remote copy via SSH with 500MB per thread
-    $SCRIPT_NAME -S 500MB /source/path user@remotehost:/dest/path
+    # Copy directory itself (like rsync /source/mydir /dest/)
+    $SCRIPT_NAME /source/mydir /dest/
+    # Result: /dest/mydir/ contains the contents of mydir
 
-    # Large files with 10GB per thread
-    $SCRIPT_NAME -S 10GB -T 8 /source/path /dest/path
+    # Remote copy with contents only
+    $SCRIPT_NAME /source/data/ user@server:/backup/
+    # Result: /backup/ contains the contents of data
 
-    # Many small files with 100MB per thread
-    $SCRIPT_NAME -S 100MB -T 20 -F 10000 /source/path user@server:/dest/path
+    # Remote copy with directory
+    $SCRIPT_NAME /source/data user@server:/backup/
+    # Result: /backup/data/ contains the contents of data
+
+    # Optimized for large files
+    $SCRIPT_NAME -S 10GB -T 8 /source/bigfiles/ /dest/
+    
+    # Optimized for many small files  
+    $SCRIPT_NAME -S 100MB -T 20 -F 10000 /source/smallfiles /dest/
 
 SIZE EXAMPLES:
     -S 512MB      512 megabytes
@@ -276,6 +376,9 @@ ENVIRONMENT VARIABLES:
     FILES            Default file limit per thread
 
 NOTES:
+    - Trailing slash behavior matches rsync exactly:
+      * source/  -> copies contents only
+      * source   -> copies directory itself
     - For many small files: use smaller size limit (-S 100MB), increase threads (-T)
     - For large files: use larger size limit (-S 5GB), optimize thread count (-T)
     - Log files are automatically organized by source directory name and timestamp
@@ -327,9 +430,9 @@ main() {
     src_dir="$1"
     dest_dir="$2"
     
-    # Convert source to absolute path (only for local paths)
-    if [[ -d "$src_dir" ]]; then
-        src_dir="$(cd "$src_dir" && pwd)"
+    # Convert source to absolute path (only for local paths and only if it doesn't have trailing slash)
+    if [[ -d "${src_dir%/}" ]] && [[ "$src_dir" != */ ]]; then
+        src_dir="$(cd "${src_dir%/}" && pwd)"
     fi
     
     # Execute main function
